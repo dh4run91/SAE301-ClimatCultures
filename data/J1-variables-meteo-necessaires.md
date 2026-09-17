@@ -101,3 +101,18 @@ Le choix d'un second modèle issu d'une autre institution est délibéré : comp
 Cet exemple illustre pourquoi un modèle unique ne suffit pas. Sur la moyenne annuelle, les deux simulations sont proches et pourraient laisser croire à un consensus. Sur les extrêmes, en revanche, elles divergent fortement — et dans des directions opposées selon l'indicateur : CMCC_CM2_VHR4 projette un climat nettement moins gélif mais plus chaud en été, quand MRI_AGCM3_2_S décrit une année aux amplitudes plus marquées.
 
 Or ce sont précisément les extrêmes, et non les moyennes, qui déterminent la viabilité d'une culture. Un verdict fondé sur le seul CMCC_CM2_VHR4 conclurait à un risque de gel printanier faible pour la vigne ; le même verdict fondé sur MRI_AGCM3_2_S serait bien plus prudent. L'application devra donc restituer une fourchette plutôt qu'une valeur unique, et expliciter que cette fourchette traduit un désaccord entre modèles, non une imprécision de mesure.
+
+
+## 6. Qualité des données et limites connues de l'API
+
+**Un seul scénario d'émission (≈ RCP 8.5)** — on compare des 
+modèles entre eux pour mesurer l'incertitude, pas des scénarios. 
+Pour comparer des scénarios RCP différents, il faudrait DRIAS.
+
+**Résolution spatiale ~10 km** — le relief est lissé. Deux communes 
+proches peuvent tomber dans la même maille et recevoir les mêmes 
+valeurs. À signaler à l'utilisateur.
+
+**Disponibilité variable selon les modèles** — EC_Earth3P_HR a déjà 
+renvoyé des données vides. La disponibilité de chaque variable doit 
+être vérifiée pour chaque modèle avant de lancer les calculs.
