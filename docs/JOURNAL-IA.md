@@ -27,9 +27,12 @@
 
 | Équipier | Outil ambiant utilisé | Où (IDE / éditeur) | Depuis quand |
 |---|---|---|---|
-| `[Prénom NOM]` | *ex. GitHub Copilot* | *ex. VS Code* | *ex. 15/09* |
-|  |  |  |  |
-|  |  |  |  |
+| MARDAUS | ___ | ___ | ___ |
+| PARIMELALAGAN | ___ | ___ | ___ |
+| SINOUVASSANE | ___ | ___ | ___ |
+| CREPIEUX | ___ | ___ | ___ |
+| BOUAFIA | ___ | ___ | ___ |
+| CHAMBI LEBLANC | ___ | ___ | ___ |
 
 *Aucun assistant ambiant utilisé ? Écrivez-le explicitement : « Aucun » — une case vide n'est pas une déclaration.*
 
@@ -39,10 +42,14 @@
 
 | Date | Équipier | Outil/modèle | Tâche / contexte | Prompt (résumé) | Sortie IA | Gardé/modifié/rejeté | Justification (vérif. / correction / test) | Tokens (≈) |
 |---|---|---|---|---|---|---|---|---|
-| 12/10 | Léa | Haiku 4.5 | requête SQL des GDD | « somme des T° > 10 °C par culture et commune » | requête proposée | **modifié** | jointure fausse sur `Dim_Temps` corrigée ; index ajouté ; testée sur commune X → cohérent | ~1 900 |
-|  |  |  |  |  |  |  |  |  |
-|  |  |  |  |  |  |  |  |  |
-|  |  |  |  |  |  |  |  |  |
+| 11/09 | ___ | Claude Opus 5 (claude.ai) | Organisation du J0 DATA | étapes de la semaine à partir des documents | plan en 5 étapes | **modifié** | plan réorganisé à mesure des amorçages reçus | non mesurable |
+| 11/09 | ___ | Claude Opus 5 (claude.ai) | Test API Open-Meteo (Créteil) | régler l'appel, analyser le CSV exporté | paramètres d'appel, statistiques de contrôle | **modifié** | appel réalisé par nous ; ET0 trouvée sous `_sum`, contredit la doc. ___ | non mesurable |
+| 11/09 | ___ | Claude Opus 5 (claude.ai) | Structure de traçabilité des seuils | créer la table `Source_Seuil` | `sources-seuils.csv` vide (70 lignes) | **gardé** | structure recommandée par l'amorçage DATA ; aucune source remplie par l'IA | non mesurable |
+| 11-14/09 | ___ | Claude Opus 5 (claude.ai) | Recherche des seuils du maïs | où trouver chaque seuil ; cette page est-elle fiable | pistes : ARVALIS, fiches accidents, FAO-56, ECOCROP | **modifié** | chaque page ouverte et lue par nous ; pages écartées (semenciers, maïs fourrage). ___ | non mesurable |
+| 14/09 | ___ | Claude Opus 5 (claude.ai) | Test API Reims, 2 modèles | comparer les deux modèles à partir du CSV | tableau MRI / CMCC | **gardé** | appel réalisé par nous ; 28 jours de gel contre 11. ___ | non mesurable |
+| 14/09 | ___ | Claude Opus 5 (claude.ai) | Cahier E2 | corriger la logique de la réponse | réponse reformulée | **modifié** | contradiction avec l'architecture (centroïde) corrigée | non mesurable |
+| 14/09 | ___ | Claude Opus 5 (claude.ai) | Identifier les dimensions (J1) | esquisse du schéma en étoile | `MODELE-DIMENSIONNEL-esquisse.md` + versions simplifiées | ___ | ___ | non mesurable |
+| 14/09 | ___ | Claude Opus 5 (claude.ai) | Document variables météo | vérifier le document | nom de variable corrigé, partie ET0 réécrite | **modifié** | ___ | non mesurable |
 
 *(Ajoutez autant de lignes que nécessaire.)*
 
