@@ -1,7 +1,14 @@
-# 📓 Journal d'usage de l'IA — Équipe `[nom de l'équipe]`
+# 📓 Journal d'usage de l'IA — Équipe `9`
 
 > **SAÉ 3.01 « Climat & Cultures »** — à tenir **au fil de l'eau**, versionné dans le dépôt Git, annexé au livrable final.
-> Membres : `[Prénom NOM × 6]`
+> Membres : 
+
+ `[Sabiledine BOUAFIA]`    
+ `[Remy CHAMBI LEBLANC]`   
+ `[Adrien CREPIEUX]`       
+ `[Sebastien MARDAUS]`     
+ `[Rakul PARIMELALAGAN]`    
+ `[Dharun SINOUVASSANE]`   
 
 ## Rappel express des règles
 - L'IA est un **copilote, pas un sous-traitant**. 🔑 *« Si tu ne peux pas l'expliquer, tu ne peux pas le rendre. »*
