@@ -1,5 +1,4 @@
 .env
-.env.*
 *.key
 credentials.json
 venv/
@@ -8,3 +7,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 .venv/
+.idea/
+.vscode/
+.pyc/
