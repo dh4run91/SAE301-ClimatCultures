@@ -1,6 +1,7 @@
 import os
 import requests
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -28,6 +29,7 @@ if response.ok:
     data = response.json()
     print("Appel Open-Meteo réussi")
     print("Température :", data["current"]["temperature_2m"], "°C")
+    print(json.dumps(data, indent=4))
 else:
     print("Erreur :", response.text)
     print(response.text)
