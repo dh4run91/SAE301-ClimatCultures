@@ -9,4 +9,5 @@ Thumbs.db
 .venv/
 .idea/
 .vscode/
-.pyc/
+.pyc/.venv/
+.env
