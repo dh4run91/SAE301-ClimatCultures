@@ -3,7 +3,7 @@
 -- Script de creation de la base - modele dimensionnel en etoile
 --
 -- Cible : MySQL 8 (AlwaysData). Encodage utf8mb4, moteur InnoDB.
--- Source du modele : data/J1-dimensions-necessaires.md
+-- Source du modele : docs/J1-dimensions-necessaires.md
 --
 -- Grain de la table de faits : commune x culture x horizon x modele x indicateur
 --
