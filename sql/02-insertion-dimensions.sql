@@ -19,23 +19,27 @@ SET NAMES utf8mb4;
 -- 0,01 degre et altitude_m semble etre l'altitude de la ville, pas celle de
 -- la maille renvoyee par l'API (champ elevation). A remplacer par les
 -- valeurs de l'API, ou a signaler dans le commentaire de la colonne.
-INSERT INTO Dim_Commune (id_commune, nom, latitude, longitude, altitude_m, zone_climatique, departement) VALUES
-  ('59350', 'Lille', 50.63, 3.06, 25, 'océanique dégradé', '59'),
-  ('29019', 'Brest', 48.39, -4.49, 50, 'océanique', '29'),
-  ('35238', 'Rennes', 48.11, -1.68, 30, 'océanique', '35'),
-  ('51454', 'Reims', 49.2535, 4.0551, 93, 'océanique dégradé', '51'),
-  ('75056', 'Paris', 48.85, 2.35, 35, 'océanique dégradé', '75'),
-  ('45234', 'Orléans', 47.90, 1.90, 100, 'océanique dégradé', '45'),
-  ('67482', 'Strasbourg', 48.58, 7.75, 140, 'semi-continental', '67'),
-  ('54395', 'Nancy', 48.69, 6.18, 210, 'semi-continental', '54'),
-  ('21231', 'Dijon', 47.32, 5.04, 245, 'semi-continental', '21'),
-  ('63113', 'Clermont-Ferrand', 45.78, 3.08, 330, 'semi-continental', '63'),
-  ('69123', 'Lyon', 45.76, 4.84, 170, 'semi-continental', '69'),
-  ('33063', 'Bordeaux', 44.84, -0.58, 10, 'océanique aquitain', '33'),
-  ('31555', 'Toulouse', 43.60, 1.44, 150, 'océanique aquitain', '31'),
-  ('84007', 'Avignon', 43.95, 4.81, 25, 'méditerranéen', '84'),
-  ('34172', 'Montpellier', 43.61, 3.88, 30, 'méditerranéen', '34'),
-  ('05023', 'Briançon', 44.90, 6.64, 1326, 'montagnard', '05');
+--
+-- id_region et nom_region : releves le 16/11/2026 sur l'API Geo
+-- (https://geo.api.gouv.fr/communes/<code>?fields=nom,codeRegion,region)
+-- pour les 16 communes. Ajoutes suite au contrat d'interface du 02/11/2026.
+INSERT INTO Dim_Commune (id_commune, nom, latitude, longitude, altitude_m, zone_climatique, departement, id_region, nom_region) VALUES
+  ('59350', 'Lille', 50.63, 3.06, 25, 'océanique dégradé', '59', '32', 'Hauts-de-France'),
+  ('29019', 'Brest', 48.39, -4.49, 50, 'océanique', '29', '53', 'Bretagne'),
+  ('35238', 'Rennes', 48.11, -1.68, 30, 'océanique', '35', '53', 'Bretagne'),
+  ('51454', 'Reims', 49.2535, 4.0551, 93, 'océanique dégradé', '51', '44', 'Grand Est'),
+  ('75056', 'Paris', 48.85, 2.35, 35, 'océanique dégradé', '75', '11', 'Île-de-France'),
+  ('45234', 'Orléans', 47.90, 1.90, 100, 'océanique dégradé', '45', '24', 'Centre-Val de Loire'),
+  ('67482', 'Strasbourg', 48.58, 7.75, 140, 'semi-continental', '67', '44', 'Grand Est'),
+  ('54395', 'Nancy', 48.69, 6.18, 210, 'semi-continental', '54', '44', 'Grand Est'),
+  ('21231', 'Dijon', 47.32, 5.04, 245, 'semi-continental', '21', '27', 'Bourgogne-Franche-Comté'),
+  ('63113', 'Clermont-Ferrand', 45.78, 3.08, 330, 'semi-continental', '63', '84', 'Auvergne-Rhône-Alpes'),
+  ('69123', 'Lyon', 45.76, 4.84, 170, 'semi-continental', '69', '84', 'Auvergne-Rhône-Alpes'),
+  ('33063', 'Bordeaux', 44.84, -0.58, 10, 'océanique aquitain', '33', '75', 'Nouvelle-Aquitaine'),
+  ('31555', 'Toulouse', 43.60, 1.44, 150, 'océanique aquitain', '31', '76', 'Occitanie'),
+  ('84007', 'Avignon', 43.95, 4.81, 25, 'méditerranéen', '84', '93', 'Provence-Alpes-Côte d''Azur'),
+  ('34172', 'Montpellier', 43.61, 3.88, 30, 'méditerranéen', '34', '76', 'Occitanie'),
+  ('05023', 'Briançon', 44.90, 6.64, 1326, 'montagnard', '05', '93', 'Provence-Alpes-Côte d''Azur');
 
 -- --- 10 cultures et leurs seuils ------------------------------------
 INSERT INTO Dim_Culture (id_culture, nom, type, t_base_c, t_plafond_gdd_c,

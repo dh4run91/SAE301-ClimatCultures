@@ -48,8 +48,13 @@ CREATE TABLE Dim_Commune (
     altitude_m       SMALLINT      NULL     COMMENT 'Altitude de la maille (champ elevation)',
     zone_climatique  VARCHAR(50)   NULL,
     departement      CHAR(3)       NOT NULL,
+    -- id_region en CHAR(2) et non en entier : les regions d'outre-mer vont de
+    -- 01 a 06, un entier leur mangerait le zero initial, comme pour 05023.
+    id_region        CHAR(2)       NOT NULL COMMENT 'Code region INSEE (API Geo, codeRegion)',
+    nom_region       VARCHAR(60)   NOT NULL COMMENT 'Libelle de la region (API Geo, region.nom)',
     PRIMARY KEY (id_commune),
-    INDEX idx_commune_departement (departement)
+    INDEX idx_commune_departement (departement),
+    INDEX idx_commune_region (id_region)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Les 16 communes de reference';
 
 

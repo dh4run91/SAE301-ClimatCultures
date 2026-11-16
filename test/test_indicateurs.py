@@ -8,11 +8,11 @@ dans les commentaires des scripts SQL.
 
 Lancement, depuis la racine du projet :
 
-    python tests/test_indicateurs.py
+    python test/test_indicateurs.py
 
 Le script fonctionne aussi avec pytest, s'il est installe :
 
-    pytest tests/
+    pytest test/
 """
 
 import os
@@ -25,6 +25,7 @@ import indicateurs as ind  # noqa: E402
 
 MARS = os.path.join(RACINE, "data", "test", "series-reims-mars-2049.csv")
 ANNEE = os.path.join(RACINE, "data", "test", "series-reims-2049-complete.csv")
+LACUNES = os.path.join(RACINE, "data", "test", "series-reims-mars-2049-lacunes.csv")
 
 MRI = "MRI_AGCM3_2_S"
 CMCC = "CMCC_CM2_VHR4"
@@ -89,6 +90,48 @@ def test_chiffres_cites_dans_le_sql():
     # 16 et 28 jours au-dessus de 30 degres
     assert ind.jours_echaudage(s[MRI], 30.0, 1, 12) == 16
     assert ind.jours_echaudage(s[CMCC], 30.0, 1, 12) == 28
+
+
+def test_aucun_jour_sous_moins_4_chez_cmcc():
+    """Cas limite : CMCC n'a aucun jour a -4 degres ou moins sur l'annee 2049.
+
+    Ce n'est pas une annee sans gel : le minimum de CMCC est -2,5 degres, donc
+    a -2 il compte des jours. Le resultat depend du seuil autant que du modele.
+    Le resultat attendu est l'entier 0, pas None : None signifierait « non
+    calculable ».
+    """
+    s = _annee()
+    assert ind.jours_de_gel(s[CMCC], -4.0, 1, 12) == 0
+    faits = dict((nom, v) for nom, v, _ in
+                 ind.indicateurs_culture(s[CMCC], "BLE_TENDRE_H", 49.2535, avertir=False))
+    assert faits["gel"] == 0 and faits["gel"] is not None
+
+
+def test_valeur_manquante_jamais_lue_comme_zero():
+    """Contrat d'interface : une case vide n'est jamais lue comme un zero.
+
+    series-reims-mars-2049-lacunes.csv reprend MRI sur mars 2049 avec deux
+    cases videes : t_min du 1er mars (-3,1) et precip du 7 mars (19,16).
+    """
+    s = ind.lire_csv_contrat(LACUNES)[MRI]
+    assert [j["precip"] for j in s if j["date"].day == 7] == [None]
+
+
+def test_comportement_actuel_lacunes_a_corriger_j3():
+    """Fige le comportement ACTUEL du module face aux lacunes, pas le bon.
+
+    Le module ecarte la ligne sans t_min et ignore la pluie vide, sans rien
+    signaler : le gel est sous-compte en silence. Ce test devra echouer
+    volontairement quand le controle de couverture arrivera au jalon 3.
+    """
+    s = ind.lire_csv_contrat(LACUNES)[MRI]
+    # La ligne sans t_min est ecartee : 30 jours lus sur 31.
+    assert len(s) == 30
+    # Le seul jour sous -2 degres etait le 1er mars : il disparait avec la ligne.
+    assert ind.jours_de_gel(s, -2.0, *MARS_A_MAI) == 0
+    assert ind.jours_de_gel(s, 0.0, *MARS_A_MAI) == 3
+    # 72,6 - 6,20 (ligne ecartee) - 19,16 (case vide) = 47,2
+    assert ind.cumul_precipitations(s, *MARS_A_MAI) == 47.2
 
 
 def test_fenetre_a_cheval_sur_deux_annees():

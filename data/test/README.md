@@ -8,6 +8,7 @@ SAÉ 3.01 « Climat & Cultures », équipe 9, pôle DATA. Jalon 2.
 |---|---|
 | `series-reims-2049-complete.csv` | Reims, année 2049, les deux modèles. 730 lignes |
 | `series-reims-mars-2049.csv` | Extrait de mars 2049, 62 lignes, vérifiable à la main |
+| `series-reims-mars-2049-lacunes.csv` | MRI sur mars 2049, deux cases vidées volontairement |
 | `README.md` | Les valeurs attendues et comment les contrôler |
 
 Les données sont réelles : elles proviennent de l'API Open-Meteo Climate,
@@ -90,6 +91,64 @@ nombre pour les trois serait faux.
 |---|---|---|
 | mars 2049 | **72,6 mm** | **80,3 mm** |
 
+## Cas limites
+
+Trois cas limites sont couverts : la canicule, aucun jour sous le seuil
+de gel et la valeur manquante.
+
+### La canicule
+
+Couverte par les 16 et 28 jours au-dessus de 30 °C sur l'année complète
+(voir plus bas, chiffres cités dans le SQL).
+
+### Aucun jour sous le seuil de gel
+
+Aucune donnée inventée : CMCC_CM2_VHR4 ne compte **aucun** jour à −4 °C ou
+moins sur toute l'année 2049. Ce n'est pas une année sans gel : son minimum
+est −2,5 °C, donc à −2 °C il compte un jour. Le résultat dépend du seuil
+autant que du modèle.
+
+| Seuil | MRI | CMCC |
+|---|---|---|
+| −4 °C, année entière | 5 | **0** |
+| −2 °C, année entière | 9 | 1 |
+| 0 °C, année entière | 28 | 11 |
+
+Le compte est « inférieur ou égal » : chez MRI, le 23 février vaut −4,0 °C
+pile, d'où 5 jours, et 4 en comptage strict.
+
+Le module doit renvoyer l'entier `0`, pas `None`. Zéro jour sous le seuil
+est une mesure réelle. `None` voudrait dire « non calculable », et finirait en
+`NULL` dans `Fact_Indicateur`.
+
+### La valeur manquante
+
+`series-reims-mars-2049-lacunes.csv` reprend les 31 lignes MRI de mars 2049,
+avec deux cases vidées à la main :
+
+| Date | Champ vidé | Valeur d'origine |
+|---|---|---|
+| 2049-03-01 | `t_min` | −3,1 |
+| 2049-03-07 | `precip` | 19,16 |
+
+| Contrôle | Attendu | Pourquoi | Nature |
+|---|---|---|---|
+| `precip` du 7 mars | **None** | une case vide ne devient jamais 0 | contrat, définitif |
+| jours lus | **30** | une ligne sans `t_min` est écartée | comportement actuel |
+| gel à −2 °C | **0** (au lieu de 1) | le seul jour sous −2 °C était le 1er mars | comportement actuel |
+| gel à 0 °C | **3** (au lieu de 4) | idem | comportement actuel |
+| cumul de pluie | **47,2 mm** | 72,6 − 6,20 − 19,16 | comportement actuel |
+
+La première ligne est vérifiée par `test_valeur_manquante_jamais_lue_comme_zero`.
+Les quatre autres sont isolées dans `test_comportement_actuel_lacunes_a_corriger_j3` :
+elles figent un défaut connu. Une journée manquante fait baisser le nombre
+de jours de gel **sans avertissement**, et le résultat a l'air complet alors
+qu'il ne l'est pas. Ce test devra échouer volontairement quand le contrôle
+de couverture arrivera au jalon 3.
+
+Ces valeurs ont été recalculées par un comptage `awk` indépendant du
+module, et concordent.
+
 ## Comment vérifier à la main
 
 Ouvrez `series-reims-mars-2049.csv` dans un tableur, filtrez sur un modèle.
@@ -121,7 +180,7 @@ Les valeurs ci-dessus se vérifient automatiquement, depuis la racine du
 projet :
 
 ```
-python tests/test_indicateurs.py
+python test/test_indicateurs.py
 ```
 
 Le script appelle les fonctions du module avec la fenêtre mars à mai et
