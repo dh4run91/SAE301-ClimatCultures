@@ -50,6 +50,14 @@ CULTURES = {
 }
 
 
+def en_float(valeur):
+    """Convertit une case en float, ou renvoie None si elle est vide ou illisible."""
+    try:
+        return float(valeur)
+    except (ValueError, TypeError):
+        return None
+
+
 def mois_de_fenetre(mois_debut, mois_fin):
     """Renvoie la liste des mois couverts par une fenetre, dans l'ordre.
 
@@ -126,26 +134,35 @@ def degres_jours(serie, t_base, t_plafond=None, mois_debut=1, mois_fin=12):
 
     Contribution d'un jour : max((t_min + min(t_max, plafond)) / 2 - t_base, 0).
     Sans plafond, t_max est pris tel quel. Une journee froide ne retire jamais
-    de degres-jours. Resultat arrondi a 0,1.
+    de degres-jours. Un jour dont t_min ou t_max manque est saute. Resultat
+    arrondi a 0,1.
     """
     total = 0.0
     for j in filtrer(serie, mois_debut, mois_fin):
+        if j["t_min"] is None or j["t_max"] is None:
+            continue
         tmax = j["t_max"] if t_plafond is None else min(j["t_max"], t_plafond)
         total += max((j["t_min"] + tmax) / 2.0 - t_base, 0.0)
     return round(total, 1)
 
 
 def jours_de_gel(serie, seuil, mois_debut, mois_fin):
-    """Nombre de jours de la fenetre ou t_min est inferieure ou egale au seuil."""
-    return sum(1 for j in filtrer(serie, mois_debut, mois_fin) if j["t_min"] <= seuil)
+    """Nombre de jours de la fenetre ou t_min est inferieure ou egale au seuil.
+
+    Un jour sans t_min n'est pas compte ; sa t_max n'intervient pas ici.
+    """
+    return sum(1 for j in filtrer(serie, mois_debut, mois_fin)
+               if j["t_min"] is not None and j["t_min"] <= seuil)
 
 
 def jours_echaudage(serie, seuil, mois_debut, mois_fin):
     """Nombre de jours de la fenetre ou t_max depasse strictement le seuil.
 
     Sert a la fois pour l'echaudage du ble et pour le stress thermique.
+    Un jour sans t_max n'est pas compte ; sa t_min n'intervient pas ici.
     """
-    return sum(1 for j in filtrer(serie, mois_debut, mois_fin) if j["t_max"] > seuil)
+    return sum(1 for j in filtrer(serie, mois_debut, mois_fin)
+               if j["t_max"] is not None and j["t_max"] > seuil)
 
 
 def cumul_precipitations(serie, mois_debut, mois_fin):
@@ -177,8 +194,11 @@ def et0_hargreaves(t_min, t_max, latitude_deg, jour_annee):
     """Evapotranspiration de reference ET0 en mm/jour (formule de Hargreaves).
 
     Ra est converti en mm d'eau equivalents (facteur 0,408). Renvoie None si
-    t_max < t_min, ce qui signale une donnee incoherente.
+    une des deux temperatures manque, ou si t_max < t_min, ce qui signale une
+    donnee incoherente.
     """
+    if t_min is None or t_max is None:
+        return None
     if t_max < t_min:
         return None
     ra_mm = rayonnement_extraterrestre(latitude_deg, jour_annee) * 0.408
@@ -190,7 +210,8 @@ def bilan_hydrique(serie, latitude_deg, mois_debut, mois_fin):
     """Bilan pluie moins ET0 sur la fenetre.
 
     Renvoie le triplet (bilan, pluie, et0) en mm, arrondis a 0,1. Une pluie
-    manquante compte pour zero dans ce bilan.
+    manquante compte pour zero dans ce bilan. Un jour dont une temperature
+    manque garde sa pluie mais n'apporte pas d'ET0.
     """
     pluie = et0 = 0.0
     for j in filtrer(serie, mois_debut, mois_fin):
@@ -262,7 +283,8 @@ def lire_json(chemin):
     """Lit la reponse JSON de l'API Open-Meteo Climate.
 
     Renvoie (series, latitude, altitude), ou series associe a chaque modele la
-    liste de ses jours. Les jours sans t_min ou t_max sont ignores.
+    liste de ses jours. Une temperature manquante devient None ; un jour
+    n'est ignore que si t_min et t_max manquent toutes les deux.
     """
     with open(chemin, encoding="utf-8") as f:
         d = json.load(f)
@@ -275,10 +297,11 @@ def lire_json(chemin):
         tmin, tmax = d["daily"][f"temperature_2m_min_{m}"], d["daily"][f"temperature_2m_max_{m}"]
         pr = d["daily"].get(f"precipitation_sum_{m}", [None] * len(jours))
         for i, jour in enumerate(jours):
-            if tmin[i] is None or tmax[i] is None:
+            t_min, t_max = en_float(tmin[i]), en_float(tmax[i])
+            if t_min is None and t_max is None:
                 continue
             s.append({"date": datetime.strptime(jour, "%Y-%m-%d").date(),
-                      "t_min": tmin[i], "t_max": tmax[i], "precip": pr[i]})
+                      "t_min": t_min, "t_max": t_max, "precip": pr[i]})
         series[m] = s
     return series, d.get("latitude"), d.get("elevation")
 
@@ -287,8 +310,10 @@ def lire_csv_contrat(chemin):
     """Lit un CSV au format du contrat d'interface DEV vers DATA.
 
     Separateur point-virgule, dates ISO, une case vide pour une valeur
-    manquante. Les lignes sans t_min ou t_max sont ignorees, une pluie vide
-    devient None. Renvoie un dictionnaire modele -> jours tries par date.
+    manquante. t_min et t_max sont lues separement : une temperature vide
+    devient None, et la ligne n'est ignoree que si les deux manquent. Une
+    pluie vide devient None. Renvoie un dictionnaire modele -> jours tries
+    par date.
     """
     with open(chemin, encoding="utf-8-sig", newline="") as f:
         lignes = list(csv.DictReader(f, delimiter=";"))
@@ -296,9 +321,8 @@ def lire_csv_contrat(chemin):
     series = {}
     for l in lignes:
         m = l["id_modele"].strip()
-        try:
-            t_min, t_max = float(l["t_min"]), float(l["t_max"])
-        except (ValueError, TypeError):
+        t_min, t_max = en_float(l["t_min"]), en_float(l["t_max"])
+        if t_min is None and t_max is None:
             continue
         precip = l.get("precip", "").strip()
         series.setdefault(m, []).append({

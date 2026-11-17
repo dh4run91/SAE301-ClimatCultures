@@ -15,8 +15,10 @@ Le script fonctionne aussi avec pytest, s'il est installe :
     pytest test/
 """
 
+import io
 import os
 import sys
+from contextlib import redirect_stderr
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RACINE)
@@ -25,7 +27,8 @@ import indicateurs as ind  # noqa: E402
 
 MARS = os.path.join(RACINE, "data", "test", "series-reims-mars-2049.csv")
 ANNEE = os.path.join(RACINE, "data", "test", "series-reims-2049-complete.csv")
-LACUNES = os.path.join(RACINE, "data", "test", "series-reims-mars-2049-lacunes.csv")
+MANQUANTES = os.path.join(RACINE, "data", "test", "series-reims-2049-mars-valeurs-manquantes.csv")
+ETE = os.path.join(RACINE, "data", "test", "series-reims-2049-ete-sans-gel.csv")
 
 MRI = "MRI_AGCM3_2_S"
 CMCC = "CMCC_CM2_VHR4"
@@ -42,11 +45,21 @@ def _annee():
     return ind.lire_csv_contrat(ANNEE)
 
 
+def _manquantes():
+    return ind.lire_csv_contrat(MANQUANTES)
+
+
+def _ete():
+    return ind.lire_csv_contrat(ETE)
+
+
 def test_taille_des_jeux():
-    """730 lignes pour l'annee complete, 62 pour l'extrait de mars."""
-    annee, mars = _annee(), _mars()
+    """730 lignes pour l'annee, 62 pour mars, 62 pour mars a trous, 184 pour l'ete."""
+    annee, mars, manquantes, ete = _annee(), _mars(), _manquantes(), _ete()
     assert len(annee[MRI]) == 365 and len(annee[CMCC]) == 365
     assert len(mars[MRI]) == 31 and len(mars[CMCC]) == 31
+    assert len(manquantes[MRI]) == 31 and len(manquantes[CMCC]) == 31
+    assert len(ete[MRI]) == 92 and len(ete[CMCC]) == 92
 
 
 def test_jours_de_gel_selon_le_seuil():
@@ -110,28 +123,73 @@ def test_aucun_jour_sous_moins_4_chez_cmcc():
 def test_valeur_manquante_jamais_lue_comme_zero():
     """Contrat d'interface : une case vide n'est jamais lue comme un zero.
 
-    series-reims-mars-2049-lacunes.csv reprend MRI sur mars 2049 avec deux
-    cases videes : t_min du 1er mars (-3,1) et precip du 7 mars (19,16).
+    series-reims-2049-mars-valeurs-manquantes.csv reprend mars 2049 avec
+    cinq cases videes chez MRI : t_max du 1er et du 5 mars, t_min du 3 et du
+    4 mars, precip du 7 mars (19,16 dans l'export).
     """
-    s = ind.lire_csv_contrat(LACUNES)[MRI]
-    assert [j["precip"] for j in s if j["date"].day == 7] == [None]
+    s = _manquantes()[MRI]
+    jour = {j["date"].day: j for j in s}
+    assert jour[7]["precip"] is None
+    assert jour[1]["t_max"] is None and jour[5]["t_max"] is None
+    assert jour[3]["t_min"] is None and jour[4]["t_min"] is None
+
+
+def test_precipitation_vide_ignoree_dans_le_cumul():
+    """La pluie vide du 7 mars n'entre pas dans le cumul : 72,6 - 19,16 = 53,4."""
+    s = _manquantes()[MRI]
+    assert ind.cumul_precipitations(s, *MARS_A_MAI) == 53.4
+
+
+def test_tmax_vide_tmin_valide_compte_pour_le_gel():
+    """1er mars : t_max vide mais t_min a -3,1. Le jour compte a -2 degres."""
+    s = _manquantes()[MRI]
+    assert ind.jours_de_gel(s, -2.0, *MARS_A_MAI) == 1
+
+
+def test_tmin_vide_jamais_lue_comme_zero():
+    """3 et 4 mars : t_min vide (0,4 dans l'export). Lue comme 0, le gel
+    a 0 degre passerait de 4 a 6."""
+    s = _manquantes()[MRI]
+    assert ind.jours_de_gel(s, 0.0, *MARS_A_MAI) == 4
+
+
+def test_modele_sans_lacune_intact():
+    """CMCC n'a aucune case vide : toujours 0 jour de gel a 0 degre en mars."""
+    s = _manquantes()[CMCC]
+    assert ind.jours_de_gel(s, 0.0, *MARS_A_MAI) == 0
+
+
+def test_fenetre_vide_zero_et_avertissement():
+    """La serie d'ete ne couvre pas mars a mai : 0 jour, et un avertissement."""
+    s = _ete()[MRI]
+    tampon = io.StringIO()
+    with redirect_stderr(tampon):
+        averti = ind.avertir_si_fenetre_non_couverte(s, *MARS_A_MAI, "test")
+    assert ind.jours_de_gel(s, 0.0, *MARS_A_MAI) == 0
+    assert averti is True
 
 
 def test_comportement_actuel_lacunes_a_corriger_j3():
     """Fige le comportement ACTUEL du module face aux lacunes, pas le bon.
 
-    Le module ecarte la ligne sans t_min et ignore la pluie vide, sans rien
-    signaler : le gel est sous-compte en silence. Ce test devra echouer
-    volontairement quand le controle de couverture arrivera au jalon 3.
+    Une ligne n'est plus ecartee que si t_min et t_max manquent toutes les
+    deux. Mais rien ne signale encore les trous : les degres-jours sautent
+    les jours incomplets sans avertissement et le resultat a l'air complet.
+    Ce test devra echouer volontairement quand le controle de couverture
+    arrivera au jalon 3.
     """
-    s = ind.lire_csv_contrat(LACUNES)[MRI]
-    # La ligne sans t_min est ecartee : 30 jours lus sur 31.
-    assert len(s) == 30
-    # Le seul jour sous -2 degres etait le 1er mars : il disparait avec la ligne.
-    assert ind.jours_de_gel(s, -2.0, *MARS_A_MAI) == 0
-    assert ind.jours_de_gel(s, 0.0, *MARS_A_MAI) == 3
-    # 72,6 - 6,20 (ligne ecartee) - 19,16 (case vide) = 47,2
-    assert ind.cumul_precipitations(s, *MARS_A_MAI) == 47.2
+    s = _manquantes()[MRI]
+    # Aucune ligne n'a ses deux temperatures vides : 31 jours lus sur 31.
+    assert len(s) == 31
+    # Le 1er mars (t_min -3,1, t_max vide) est garde : il compte a -2 et a 0.
+    assert ind.jours_de_gel(s, -2.0, *MARS_A_MAI) == 1
+    assert ind.jours_de_gel(s, 0.0, *MARS_A_MAI) == 4
+    # 72,6 - 19,16 (case vide) = 53,4. Avant la correction : 37,5, car les
+    # quatre lignes incompletes emportaient 15,89 mm de pluie.
+    assert ind.cumul_precipitations(s, *MARS_A_MAI) == 53.4
+    # Base 0 : 203,4 au lieu de 218,6. Les 1er, 3, 4 et 5 mars sont sautes
+    # en silence, c'est le defaut que le controle de couverture traitera.
+    assert ind.degres_jours(s, 0.0, None, *MARS_A_MAI) == 203.4
 
 
 def test_fenetre_a_cheval_sur_deux_annees():

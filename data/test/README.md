@@ -8,7 +8,8 @@ SAÉ 3.01 « Climat & Cultures », équipe 9, pôle DATA. Jalon 2.
 |---|---|
 | `series-reims-2049-complete.csv` | Reims, année 2049, les deux modèles. 730 lignes |
 | `series-reims-mars-2049.csv` | Extrait de mars 2049, 62 lignes, vérifiable à la main |
-| `series-reims-mars-2049-lacunes.csv` | MRI sur mars 2049, deux cases vidées volontairement |
+| `series-reims-2049-mars-valeurs-manquantes.csv` | Mars 2049, les deux modèles, cinq cases vidées chez MRI. 62 lignes |
+| `series-reims-2049-ete-sans-gel.csv` | Juin à août 2049, les deux modèles, sans aucune case vide. 184 lignes |
 | `README.md` | Les valeurs attendues et comment les contrôler |
 
 Les données sont réelles : elles proviennent de l'API Open-Meteo Climate,
@@ -93,8 +94,8 @@ nombre pour les trois serait faux.
 
 ## Cas limites
 
-Trois cas limites sont couverts : la canicule, aucun jour sous le seuil
-de gel et la valeur manquante.
+Quatre cas limites sont couverts : la canicule, aucun jour sous le seuil
+de gel, la valeur manquante et la fenêtre que la série ne couvre pas.
 
 ### La canicule
 
@@ -123,28 +124,58 @@ est une mesure réelle. `None` voudrait dire « non calculable », et finirait e
 
 ### La valeur manquante
 
-`series-reims-mars-2049-lacunes.csv` reprend les 31 lignes MRI de mars 2049,
-avec deux cases vidées à la main :
+`series-reims-2049-mars-valeurs-manquantes.csv` reprend les 62 lignes de mars
+2049, les deux modèles. Les valeurs présentes sont celles de l'export ; cinq
+cases ont été vidées, toutes chez MRI :
 
-| Date | Champ vidé | Valeur d'origine |
-|---|---|---|
-| 2049-03-01 | `t_min` | −3,1 |
-| 2049-03-07 | `precip` | 19,16 |
+| Date | Champ vidé | Valeur d'origine | Cas couvert |
+|---|---|---|---|
+| 2049-03-01 | `t_max` | 2,0 | `t_max` vide, `t_min` valide et sous zéro (−3,1) |
+| 2049-03-03 | `t_min` | 0,4 | `t_min` vide, qui ne doit pas devenir 0 |
+| 2049-03-04 | `t_min` | 0,4 | idem |
+| 2049-03-05 | `t_max` | 10,3 | `t_max` vide, `t_min` valide au-dessus de zéro |
+| 2049-03-07 | `precip` | 19,16 | pluie vide sur un jour aux deux températures |
 
-| Contrôle | Attendu | Pourquoi | Nature |
+CMCC_CM2_VHR4 n'a aucune case vide dans ce fichier : c'est le témoin.
+
+Une ligne n'est écartée que si `t_min` et `t_max` manquent toutes les deux.
+Ce n'est le cas d'aucune ligne ici. Chaque indicateur ne lit que ce dont il a
+besoin : le gel lit `t_min`, l'échaudage lit `t_max`, les degrés-jours et
+l'ET0 ont besoin des deux et sautent le jour s'il en manque une.
+
+| Contrôle (MRI, mars) | Attendu | Pourquoi | Nature |
 |---|---|---|---|
 | `precip` du 7 mars | **None** | une case vide ne devient jamais 0 | contrat, définitif |
-| jours lus | **30** | une ligne sans `t_min` est écartée | comportement actuel |
-| gel à −2 °C | **0** (au lieu de 1) | le seul jour sous −2 °C était le 1er mars | comportement actuel |
-| gel à 0 °C | **3** (au lieu de 4) | idem | comportement actuel |
-| cumul de pluie | **47,2 mm** | 72,6 − 6,20 − 19,16 | comportement actuel |
+| `t_min` des 3 et 4 mars | **None** | idem | contrat, définitif |
+| jours lus | **31** | aucune ligne n'a ses deux températures vides | comportement actuel |
+| gel à −2 °C | **1** | le 1er mars garde sa `t_min` de −3,1 | comportement actuel |
+| gel à 0 °C | **4** | les 3 et 4 mars ne comptent pas, faute de `t_min` | comportement actuel |
+| cumul de pluie | **53,4 mm** | 72,6 − 19,16 | comportement actuel |
+| degrés-jours base 0 | **203,4** | 218,6 moins les 1er, 3, 4 et 5 mars, sautés | comportement actuel |
+| gel à 0 °C chez CMCC | **0** | témoin sans lacune | contrat, définitif |
 
-La première ligne est vérifiée par `test_valeur_manquante_jamais_lue_comme_zero`.
-Les quatre autres sont isolées dans `test_comportement_actuel_lacunes_a_corriger_j3` :
-elles figent un défaut connu. Une journée manquante fait baisser le nombre
-de jours de gel **sans avertissement**, et le résultat a l'air complet alors
-qu'il ne l'est pas. Ce test devra échouer volontairement quand le contrôle
-de couverture arrivera au jalon 3.
+Avant la correction du module, une seule température vide faisait jeter la
+ligne entière. On lisait alors 27 jours, 0 jour de gel à −2 °C, 3 à 0 °C et
+37,5 mm de pluie : les quatre lignes incomplètes emportaient 15,89 mm avec
+elles, et le seul jour sous −2 °C disparaissait sans signal.
+
+Les lignes « contrat » sont vérifiées par `test_valeur_manquante_jamais_lue_comme_zero`,
+`test_precipitation_vide_ignoree_dans_le_cumul`, `test_tmax_vide_tmin_valide_compte_pour_le_gel`,
+`test_tmin_vide_jamais_lue_comme_zero` et `test_modele_sans_lacune_intact`.
+Les lignes « comportement actuel » sont isolées dans
+`test_comportement_actuel_lacunes_a_corriger_j3`. Elles figent un défaut
+qui reste connu : les degrés-jours sautent les jours incomplets **sans
+avertissement**, et le résultat a l'air complet alors qu'il ne l'est pas.
+Ce test devra échouer volontairement quand le contrôle de couverture
+arrivera au jalon 3.
+
+### La fenêtre que la série ne couvre pas
+
+`series-reims-2049-ete-sans-gel.csv` contient juin, juillet et août 2049,
+les deux modèles, sans case vide. Calculé sur la fenêtre mars à mai, le gel
+vaut **0** et le module émet un avertissement de fenêtre non couverte. Le
+zéro seul ne suffit pas : c'est l'avertissement qui dit qu'il ne mesure
+rien. Vérifié par `test_fenetre_vide_zero_et_avertissement`.
 
 Ces valeurs ont été recalculées par un comptage `awk` indépendant du
 module, et concordent.
