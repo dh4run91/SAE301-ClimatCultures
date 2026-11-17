@@ -14,9 +14,12 @@ française à l'horizon 2050.
 | `data/test/` | jeu de séries climatiques de test, avec ses valeurs attendues |
 | `sql/` | les quatre scripts de la base |
 | `test/` | la suite de tests du module de calcul |
-| `docs/` | documents du projet : analyse, conception RGPD, journal IA, schéma |
-| `dev/` | travail du pôle DEV, client API et maquettes |
+| `docs/` | documents du projet : analyse, conception, RGPD, journal IA, contrat d'interface |
+| `docs/maquettes/` | maquettes des écrans |
+| `dev/` | travail du pôle DEV : client API, plan de tests, jeu de test du client |
+| `livrables/` | archives des jalons rendus et captures de preuve |
 | `indicateurs.py` | module de calcul des indicateurs, à la racine |
+| `controle_seuils.py` | contrôle de cohérence des seuils (CSV, SQL, module), à la racine |
 
 Règle de nommage pour les documents et les données : pas d'espace, pas
 d'accent, pas de trait de soulignement. Des traits d'union, et la casse déjà
