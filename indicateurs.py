@@ -46,7 +46,7 @@ CULTURES = {
     "BLE_TENDRE_H": {"t_base": 0.0,  "t_plafond": None, "gel": -4.0, "stress": 30.0, "gdd_maturite": 2150},
     "MAIS_GRAIN":   {"t_base": 6.0,  "t_plafond": 30.0, "gel":  0.0, "stress": 35.0, "gdd_maturite": 1600},
     "VIGNE":        {"t_base": 10.0, "t_plafond": None, "gel": -2.0, "stress": 35.0, "gdd_maturite": 1300},
-    "TOURNESOL":    {"t_base": 6.0,  "t_plafond": None, "gel": -1.0, "stress": 34.0, "gdd_maturite": 1550},
+    "TOURNESOL":    {"t_base": 6.0,  "t_plafond": None, "gel": -1.0, "stress": 34.0, "gdd_maturite": 1600},
 }
 
 
