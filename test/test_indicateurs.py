@@ -16,8 +16,11 @@ Le script fonctionne aussi avec pytest, s'il est installe :
 """
 
 import io
+import json
 import os
+import subprocess
 import sys
+import tempfile
 from contextlib import redirect_stderr
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -190,6 +193,38 @@ def test_comportement_actuel_lacunes_a_corriger_j3():
     # Base 0 : 203,4 au lieu de 218,6. Les 1er, 3, 4 et 5 mars sont sautes
     # en silence, c'est le defaut que le controle de couverture traitera.
     assert ind.degres_jours(s, 0.0, None, *MARS_A_MAI) == 203.4
+
+
+def test_lire_json_sans_modele_leve_une_erreur():
+    """Cles sans suffixe de modele, comme dans le cache de DEV : erreur, pas {}.
+
+    Le fichier est vide de donnees : seul le nom des cles compte ici.
+    """
+    daily = {"time": [], "temperature_2m_min": [], "temperature_2m_max": [],
+             "temperature_2m_mean": [], "precipitation_sum": []}
+    with tempfile.TemporaryDirectory() as dossier:
+        chemin = os.path.join(dossier, "sans_suffixe.json")
+        with open(chemin, "w", encoding="utf-8") as f:
+            json.dump({"latitude": 49.3, "elevation": 94.0, "daily": daily}, f)
+        try:
+            ind.lire_json(chemin)
+        except ValueError as e:
+            assert "temperature_2m_min_<modele>" in str(e)
+        else:
+            assert False, "lire_json aurait du lever ValueError"
+
+
+def test_main_serie_vide_message_et_pas_de_plantage():
+    """Un CSV au format du contrat sans aucune ligne : code 1, message, pas de trace."""
+    with tempfile.TemporaryDirectory() as dossier:
+        chemin = os.path.join(dossier, "vide.csv")
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write("id_commune;date;id_horizon;id_modele;t_min;t_max;t_moy;precip\n")
+        r = subprocess.run([sys.executable, os.path.join(RACINE, "indicateurs.py"), chemin],
+                           capture_output=True, text=True)
+    assert r.returncode == 1, r.returncode
+    assert "aucune serie lisible" in r.stderr
+    assert "Traceback" not in r.stderr
 
 
 def test_fenetre_a_cheval_sur_deux_annees():

@@ -285,12 +285,20 @@ def lire_json(chemin):
     Renvoie (series, latitude, altitude), ou series associe a chaque modele la
     liste de ses jours. Une temperature manquante devient None ; un jour
     n'est ignore que si t_min et t_max manquent toutes les deux.
+
+    Leve ValueError si aucune cle temperature_2m_min_<modele> n'est trouvee :
+    un dictionnaire vide passerait pour un resultat.
     """
     with open(chemin, encoding="utf-8") as f:
         d = json.load(f)
     jours = d["daily"]["time"]
     modeles = sorted({k.replace("temperature_2m_min_", "")
                       for k in d["daily"] if k.startswith("temperature_2m_min_")})
+    if not modeles:
+        raise ValueError(
+            f"{chemin} : aucun modele trouve. Cles attendues : "
+            f"temperature_2m_min_<modele> et temperature_2m_max_<modele>. "
+            f"Cles presentes : {', '.join(sorted(d['daily']))}.")
     series = {}
     for m in modeles:
         s = []
@@ -420,12 +428,21 @@ def main():
 
     latitude_arg = float(sys.argv[2]) if len(sys.argv) > 2 else 49.2535
 
-    if chemin.lower().endswith(".json"):
-        series, latitude, altitude = lire_json(chemin)
-    elif format_contrat(chemin):
-        series, latitude, altitude = lire_csv_contrat(chemin), latitude_arg, None
-    else:
-        series, latitude, altitude = lire_csv_openmeteo(chemin)
+    try:
+        if chemin.lower().endswith(".json"):
+            series, latitude, altitude = lire_json(chemin)
+        elif format_contrat(chemin):
+            series, latitude, altitude = lire_csv_contrat(chemin), latitude_arg, None
+        else:
+            series, latitude, altitude = lire_csv_openmeteo(chemin)
+    except ValueError as e:
+        print(f"ERREUR : {e}", file=sys.stderr)
+        return 1
+
+    if not series:
+        print(f"ERREUR : {chemin} ne contient aucune serie lisible. "
+              f"Aucun indicateur n'est calcule.", file=sys.stderr)
+        return 1
 
     print(f"Fichier   : {chemin}")
     print(f"Latitude  : {latitude}" + (f"   altitude de la maille : {altitude} m" if altitude else ""))
