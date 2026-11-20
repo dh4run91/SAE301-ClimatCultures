@@ -10,3 +10,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.pyc
+
+# cache genere par le client API
+data/cache/
+dev/data/cache/
