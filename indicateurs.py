@@ -222,11 +222,35 @@ def bilan_hydrique(serie, latitude_deg, mois_debut, mois_fin):
     return round(pluie - et0, 1), round(pluie, 1), round(et0, 1)
 
 
+def par_annee(serie):
+    """Decoupe une serie en {annee: jours}, les annees dans l'ordre."""
+    annees = {}
+    for j in serie:
+        annees.setdefault(j["date"].year, []).append(j)
+    return dict(sorted(annees.items()))
+
+
+def moyenne_sur_annees(serie, calcul):
+    """Calcule un indicateur annee par annee, puis en fait la moyenne.
+
+    calcul recoit les jours d'une seule annee et renvoie un nombre. Dans une
+    projection, une annee n'est pas une prevision : c'est une annee plausible
+    parmi d'autres, seule la moyenne sur plusieurs annees a un sens.
+    Renvoie (moyenne arrondie a 0,1, nombre d'annees). Une serie vide donne
+    (None, 0) : non calculable, jamais 0.
+    """
+    valeurs = [calcul(jours) for jours in par_annee(serie).values()]
+    if not valeurs:
+        return None, 0
+    return round(sum(valeurs) / len(valeurs), 1), len(valeurs)
+
+
 def indicateurs_culture(serie, id_culture, latitude_deg, avertir=True):
     """Calcule tous les indicateurs d'une culture sur une serie.
 
-    Renvoie une liste de triplets (indicateur, valeur, unite), dans l'ordre
-    d'affichage. Si avertir vaut True, les avertissements sur les fenetres
+    Renvoie une liste de quadruplets (indicateur, valeur, unite, nb_annees),
+    dans l'ordre d'affichage. La valeur est la moyenne de l'indicateur calcule
+    annee par annee, et nb_annees le nombre d'annees moyennees. Si avertir vaut True, les avertissements sur les fenetres
     sont emis ; main() les emet une seule fois par culture et passe False.
     """
     seuils = CULTURES[id_culture]
@@ -240,27 +264,32 @@ def indicateurs_culture(serie, id_culture, latitude_deg, avertir=True):
 
     f = fenetre("gdd")
     if f:
-        faits.append(("gdd", degres_jours(serie, seuils["t_base"], seuils["t_plafond"],
-                                          f[0], f[1]), "degres-jours"))
+        valeur, n = moyenne_sur_annees(
+            serie, lambda j: degres_jours(j, seuils["t_base"], seuils["t_plafond"], f[0], f[1]))
+        faits.append(("gdd", valeur, "degres-jours", n))
 
     for nom in ("gel", "gel_dormance"):
         f = fenetre(nom)
         if f:
             seuil = f[2] if f[2] is not None else seuils["gel"]
-            faits.append((nom, jours_de_gel(serie, seuil, f[0], f[1]), "jours"))
+            valeur, n = moyenne_sur_annees(serie, lambda j: jours_de_gel(j, seuil, f[0], f[1]))
+            faits.append((nom, valeur, "jours", n))
 
     for nom, cle in (("echaudage", "stress"), ("stress_thermique", "stress")):
         f = fenetre(nom)
         if f:
             seuil = f[2] if f[2] is not None else seuils[cle]
-            faits.append((nom, jours_echaudage(serie, seuil, f[0], f[1]), "jours"))
+            valeur, n = moyenne_sur_annees(serie, lambda j: jours_echaudage(j, seuil, f[0], f[1]))
+            faits.append((nom, valeur, "jours", n))
 
     f = fenetre("bilan_hydrique")
     if f:
-        bilan, pluie, et0 = bilan_hydrique(serie, latitude_deg, f[0], f[1])
-        faits.append(("bilan_hydrique", bilan, "mm"))
-        faits.append(("precipitations", pluie, "mm"))
-        faits.append(("et0_hargreaves", et0, "mm"))
+        for nom, rang, unite in (("bilan_hydrique", 0, "mm"),
+                                 ("precipitations", 1, "mm"),
+                                 ("et0_hargreaves", 2, "mm")):
+            valeur, n = moyenne_sur_annees(
+                serie, lambda j, r=rang: bilan_hydrique(j, latitude_deg, f[0], f[1])[r])
+            faits.append((nom, valeur, unite, n))
 
     return faits
 
@@ -275,7 +304,10 @@ def verdict(serie, id_culture, latitude_deg):
     if not f:
         return None, None
     s = CULTURES[id_culture]
-    gdd = degres_jours(serie, s["t_base"], s["t_plafond"], f[0], f[1])
+    gdd, _ = moyenne_sur_annees(
+        serie, lambda j: degres_jours(j, s["t_base"], s["t_plafond"], f[0], f[1]))
+    if gdd is None:
+        return None, None
     return gdd, ("viable" if gdd >= s["gdd_maturite"] else "insuffisant")
 
 
@@ -458,7 +490,9 @@ def main():
         sys.stderr.flush()
 
         print(f"=== {id_culture} " + "=" * (56 - len(id_culture)))
-        noms = [f[0] for f in indicateurs_culture(premiere, id_culture, latitude, avertir=False)]
+        faits_premiere = indicateurs_culture(premiere, id_culture, latitude, avertir=False)
+        noms = [f[0] for f in faits_premiere]
+        print(f"Moyenne sur {faits_premiere[0][3]} annee(s)")
         entete = f"{'indicateur':<18}" + "".join(f"{m[:14]:>16}" for m in series)
         print(entete)
         print("-" * len(entete))
