@@ -27,6 +27,7 @@ RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RACINE)
 
 import indicateurs as ind  # noqa: E402
+import faits  # noqa: E402
 
 MARS = os.path.join(RACINE, "data", "test", "series-reims-mars-2049.csv")
 ANNEE = os.path.join(RACINE, "data", "test", "series-reims-2049-complete.csv")
@@ -232,6 +233,40 @@ def test_fenetre_a_cheval_sur_deux_annees():
     assert ind.mois_de_fenetre(11, 2) == [11, 12, 1, 2]
     assert ind.dans_fenetre(12, 11, 2) and ind.dans_fenetre(1, 11, 2)
     assert not ind.dans_fenetre(3, 11, 2)
+
+
+def _faits_annee():
+    """Les faits du mais et de la vigne sur l'annee 2049, avertissements masques."""
+    s = _annee()
+    lignes = []
+    with redirect_stderr(io.StringIO()):
+        for culture in faits.CULTURES_TRAITEES:
+            lignes += faits.calculer_faits("51454", culture, "PROJ_2041_2050", s, 49.2535)
+    return lignes
+
+
+def test_faits_26_lignes():
+    """Mais 6 indicateurs, vigne 7, sur 2 modeles : 26 lignes."""
+    assert len(_faits_annee()) == 26
+
+
+def test_faits_gel_dormance_vigne_a_none():
+    """Fenetre novembre-fevrier sur une seule annee : NULL, jamais 0."""
+    lignes = [l for l in _faits_annee() if l["indicateur"] == "gel_dormance"]
+    assert len(lignes) == 2
+    for l in lignes:
+        assert l["valeur"] is None, l
+        assert l["nb_annees"] is None, l
+
+
+def test_faits_unites_viennent_du_module():
+    """Chaque unite est celle que renvoie indicateurs_culture pour ce fait."""
+    s = _annee()
+    for l in _faits_annee():
+        attendu = {nom: unite for nom, _, unite in
+                   ind.indicateurs_culture(s[l["id_modele"]], l["id_culture"],
+                                           49.2535, avertir=False)}
+        assert l["unite"] == attendu[l["indicateur"]], l
 
 
 if __name__ == "__main__":
