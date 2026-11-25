@@ -45,7 +45,7 @@ Comptages attendus après chargement : 16 communes réparties sur 10 régions,
 python test/test_indicateurs.py
 ```
 
-Sortie attendue : `9 / 9 tests reussis`.
+Sortie attendue : `24 / 24 tests reussis`.
 
 Le fichier a son propre lanceur : pytest n'est pas nécessaire, il n'y a rien
 à installer. `pytest test/` échoue à la collecte à cause de

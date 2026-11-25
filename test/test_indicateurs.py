@@ -268,6 +268,81 @@ def test_serie_vide_non_calculable_pas_zero():
     assert ind.moyenne_sur_annees([], lambda j: 0) == (None, 0)
 
 
+def _jours_en(mois, t_mins=None, t_maxs=None):
+    """Une serie minimale de 2049 : un jour du mois donne par valeur."""
+    from datetime import date
+    valeurs = t_mins if t_mins is not None else t_maxs
+    return [{"date": date(2049, mois, i + 1),
+             "t_min": t_mins[i] if t_mins is not None else 5.0,
+             "t_max": t_maxs[i] if t_maxs is not None else 10.0,
+             "precip": 0.0} for i in range(len(valeurs))]
+
+
+def test_gel_jour_pose_sur_le_seuil():
+    """Un jour a exactement -4,0 : compte avec <=, pas avec <.
+
+    Valeurs choisies a la main : -4,1 est sous le seuil, -4,0 est dessus,
+    -3,9 et 0,0 sont au-dessus. Strict : 1 jour. Large : 2 jours.
+    """
+    s = _jours_en(3, t_mins=[-4.1, -4.0, -3.9, 0.0])
+    assert ind.jours_de_gel(s, -4.0, *MARS_A_MAI) == 1
+    assert ind.jours_de_gel(s, -4.0, *MARS_A_MAI, "<") == 1
+    assert ind.jours_de_gel(s, -4.0, *MARS_A_MAI, "<=") == 2
+    assert ind.jours_de_gel(s, -4.0, *MARS_A_MAI, "indetermine") == 1
+
+
+def test_stress_jour_pose_sur_le_seuil():
+    """Un jour a exactement 35,0 : compte avec >=, pas avec >.
+
+    34,9 est sous le seuil, 35,0 est dessus, 35,1 est au-dessus. Strict : 1
+    jour. Large : 2 jours.
+    """
+    s = _jours_en(7, t_maxs=[34.9, 35.0, 35.1])
+    assert ind.jours_echaudage(s, 35.0, 7, 8) == 1
+    assert ind.jours_echaudage(s, 35.0, 7, 8, ">") == 1
+    assert ind.jours_echaudage(s, 35.0, 7, 8, ">=") == 2
+    assert ind.jours_echaudage(s, 35.0, 7, 8, "indetermine") == 1
+
+
+def test_operateur_inconnu_leve_une_erreur():
+    """Un sens inconnu ou vide n'est jamais remplace en silence."""
+    s = _jours_en(3, t_mins=[-5.0])
+    for mauvais in ("=>", "", None, "egal"):
+        for fonction in (ind.jours_de_gel, ind.jours_echaudage):
+            try:
+                fonction(s, 0.0, 3, 5, mauvais)
+            except ValueError as e:
+                assert "operateur inconnu" in str(e)
+            else:
+                assert False, f"{fonction.__name__} : {mauvais!r} aurait du lever ValueError"
+
+
+def test_operateurs_des_cultures_dans_indicateurs_culture():
+    """Chaque culture compte au bord de son seuil selon son operateur CULTURES.
+
+    Un seul jour pose exactement sur le seuil, dans la fenetre de l'indicateur.
+    Ble gel (<) et echaudage (>) : 0. Mais gel (<) : 0, mais stress (>=) : 1.
+    Vigne gel (indetermine, donc <) : 0, vigne stress (>=) : 1.
+    """
+    def faits(serie, id_culture):
+        return {nom: v for nom, v, *_ in
+                ind.indicateurs_culture(serie, id_culture, 49.2535, avertir=False)}
+
+    assert faits(_jours_en(3, t_mins=[-4.0]), "BLE_TENDRE_H")["gel"] == 0
+    assert faits(_jours_en(5, t_maxs=[30.0]), "BLE_TENDRE_H")["echaudage"] == 0
+    assert faits(_jours_en(9, t_mins=[0.0]), "MAIS_GRAIN")["gel"] == 0
+    assert faits(_jours_en(7, t_maxs=[35.0]), "MAIS_GRAIN")["stress_thermique"] == 1
+    assert faits(_jours_en(4, t_mins=[-2.0]), "VIGNE")["gel"] == 0
+    assert faits(_jours_en(7, t_maxs=[35.0]), "VIGNE")["stress_thermique"] == 1
+
+
+def test_operateurs_valides_pour_toutes_les_cultures():
+    """op_gel et op_stress de CULTURES sont tous lisibles par comparateur()."""
+    for id_culture, seuils in ind.CULTURES.items():
+        ind.comparateur(seuils["op_gel"], ind.REPLI_GEL)
+        ind.comparateur(seuils["op_stress"], ind.REPLI_STRESS)
+
+
 if __name__ == "__main__":
     tests = [(nom, f) for nom, f in sorted(globals().items())
              if nom.startswith("test_") and callable(f)]

@@ -7,6 +7,9 @@ Compare, pour les quatre cultures du MVP, les valeurs trouvees dans :
   2. sql/02-insertion-dimensions.sql (INSERT INTO Dim_Culture)
   3. indicateurs.py (dictionnaire CULTURES)
 
+Il compare aussi le sens de la comparaison (operateur_gel, operateur_stress du
+CSV, op_gel et op_stress du module). Le SQL ne porte pas ces colonnes.
+
 Lecture seule : ce script ne modifie aucun fichier.
 
 Lancement, depuis la racine du projet :
@@ -36,6 +39,12 @@ COLONNES_CSV = {
     "gdd_maturite": "gdd_maturite_cj",
     "gel": "seuil_gel_c",
     "stress": "seuil_stress_thermique_c",
+}
+
+# nom du champ du module -> colonne du CSV, pour les operateurs de comparaison.
+OPERATEURS_CSV = {
+    "op_gel": "operateur_gel",
+    "op_stress": "operateur_stress",
 }
 
 # Un nombre SQL : entier, decimal, negatif, ou NULL.
@@ -72,6 +81,21 @@ def lire_csv():
     return resultat
 
 
+def lire_operateurs_csv():
+    """Renvoie {id_culture: {champ: texte}} pour les operateurs du referentiel.
+
+    Une colonne absente du CSV donne « absent » ; une case vide donne « vide ».
+    """
+    resultat = {}
+    with open(CHEMIN_CSV, encoding="utf-8-sig", newline="") as f:
+        for ligne in csv.DictReader(f, delimiter=";"):
+            resultat[ligne["id_culture"]] = {
+                champ: (ligne[colonne].strip() or "vide") if colonne in ligne else "absent"
+                for champ, colonne in OPERATEURS_CSV.items()
+            }
+    return resultat
+
+
 def lire_sql():
     """Renvoie {id_culture: {champ: valeur}} depuis le script SQL."""
     with open(CHEMIN_SQL, encoding="utf-8") as f:
@@ -96,6 +120,25 @@ def lire_module():
         id_culture: {champ: en_nombre(valeurs[champ]) for champ in COLONNES_CSV}
         for id_culture, valeurs in ind.CULTURES.items()
     }
+
+
+def controler_operateurs():
+    """Compare les operateurs du CSV a ceux du module. Renvoie le nombre d'ecarts."""
+    csv_ops = lire_operateurs_csv()
+    nb_ecarts = 0
+    for id_culture, valeurs in ind.CULTURES.items():
+        print(f"=== operateurs {id_culture} " + "=" * (28 - len(id_culture)))
+        for champ in OPERATEURS_CSV:
+            module = valeurs[champ]
+            fichier = csv_ops.get(id_culture, {}).get(champ, "absent")
+            if module == fichier:
+                etat = "OK     "
+            else:
+                etat = "ECART  "
+                nb_ecarts += 1
+            print(f"{etat}{champ:<13} csv={fichier}  module={module}  sql=non porte")
+        print()
+    return nb_ecarts
 
 
 def montrer(valeur):
@@ -126,6 +169,8 @@ def main():
             )
             print(f"{etat}{champ:<13} {detail}")
         print()
+
+    nb_ecarts += controler_operateurs()
 
     if nb_ecarts == 0:
         print("Les trois sources concordent.")
