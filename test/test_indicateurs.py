@@ -343,6 +343,66 @@ def test_operateurs_valides_pour_toutes_les_cultures():
         ind.comparateur(seuils["op_stress"], ind.REPLI_STRESS)
 
 
+# Tests de faits.py (issue #80). Perdus a la fusion des PR #90 et #91,
+# repris du commit 1a78af9 et adaptes aux quadruplets de indicateurs_culture.
+
+def _faits_annee():
+    """Les faits du mais et de la vigne sur l'annee 2049, avertissements masques."""
+    s = _annee()
+    lignes = []
+    with redirect_stderr(io.StringIO()):
+        for culture in faits.CULTURES_TRAITEES:
+            lignes += faits.calculer_faits("51454", culture, "PROJ_2041_2050", s, 49.2535)
+    return lignes
+
+
+def test_faits_26_lignes():
+    """Mais 6 indicateurs, vigne 7, sur 2 modeles : 26 lignes."""
+    assert len(_faits_annee()) == 26
+
+
+def test_faits_gel_dormance_vigne_a_none():
+    """Fenetre novembre-fevrier, a cheval sur deux annees : NULL, jamais 0."""
+    lignes = [l for l in _faits_annee() if l["indicateur"] == "gel_dormance"]
+    assert len(lignes) == 2
+    for l in lignes:
+        assert l["valeur"] is None, l
+        assert l["nb_annees"] is None, l
+
+
+def test_faits_unites_viennent_du_module():
+    """Chaque unite est celle que renvoie indicateurs_culture pour ce fait."""
+    s = _annee()
+    for l in _faits_annee():
+        attendu = {nom: unite for nom, _, unite, _ in
+                   ind.indicateurs_culture(s[l["id_modele"]], l["id_culture"],
+                                           49.2535, avertir=False)}
+        assert l["unite"] == attendu[l["indicateur"]], l
+
+
+def test_faits_serie_de_deux_annees_nb_annees_du_module():
+    """Serie 2048-2049 : acceptee, valeur et nb_annees sont ceux du module.
+
+    Regression de la fusion des PR #90 et #91 : faits.py refusait toute serie
+    de plus d'une annee et ecrivait nb_annees = 1 en dur.
+    """
+    s = _annee()[MRI]
+    deux_ans = [dict(j, date=j["date"].replace(year=2048)) for j in s] + s
+    for culture in faits.CULTURES_TRAITEES:
+        with redirect_stderr(io.StringIO()):
+            lignes = faits.calculer_faits("51454", culture, "PROJ_2041_2050",
+                                          {MRI: deux_ans}, 49.2535)
+        module = {nom: (v, nb) for nom, v, _, nb in
+                  ind.indicateurs_culture(deux_ans, culture, 49.2535, avertir=False)}
+        assert len(lignes) == len(module), (culture, len(lignes))
+        for l in lignes:
+            if l["indicateur"] == "gel_dormance":
+                assert (l["valeur"], l["nb_annees"]) == (None, None), l
+            else:
+                assert module[l["indicateur"]][1] == 2, l
+                assert (l["valeur"], l["nb_annees"]) == module[l["indicateur"]], l
+
+
 if __name__ == "__main__":
     tests = [(nom, f) for nom, f in sorted(globals().items())
              if nom.startswith("test_") and callable(f)]

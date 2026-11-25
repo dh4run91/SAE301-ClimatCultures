@@ -56,9 +56,14 @@ def calculer_faits(id_commune, id_culture, id_horizon, series, latitude):
     indicateurs.lire_csv_contrat. Renvoie une liste de dictionnaires, un par
     (modele, indicateur), dont les cles sont les colonnes de la table.
 
-    Un indicateur dont la fenetre est a cheval sur deux annees, calcule sur
-    une seule annee, recoit valeur None et nb_annees None : il n'est pas
-    calculable. Il n'est jamais ecrit 0.
+    valeur et nb_annees sont ceux du module : la valeur est la moyenne de
+    l'indicateur calcule annee par annee, nb_annees le nombre d'annees
+    moyennees.
+
+    Un indicateur dont la fenetre traverse le 31 decembre (mois_debut >
+    mois_fin dans FENETRES) recoit valeur None et nb_annees None, quel que
+    soit le nombre d'annees de la serie : il n'est pas calculable. Il n'est
+    jamais ecrit 0.
     """
     if id_culture not in CULTURES_TRAITEES:
         raise ValueError(f"{id_culture} : culture non traitee. "
@@ -66,24 +71,20 @@ def calculer_faits(id_commune, id_culture, id_horizon, series, latitude):
 
     lignes = []
     for id_modele, serie in series.items():
-        # Le module additionne sur toute la serie, il ne fait pas de moyenne
-        # par annee. Au-dela d'une annee, la valeur ne serait pas annuelle.
-        annees = {j["date"].year for j in serie}
-        if len(annees) != 1:
-            raise ValueError(f"{id_modele} : la serie couvre {len(annees)} annees. "
-                             f"Seule une serie d une annee est traitee pour l instant.")
-
-        for nom, valeur, unite in ind.indicateurs_culture(serie, id_culture, latitude,
-                                                          avertir=False):
+        for nom, valeur, unite, nb_annees in ind.indicateurs_culture(
+                serie, id_culture, latitude, avertir=False):
             # Pluie et ET0 sont calculees sur la fenetre du bilan hydrique.
             cle = "bilan_hydrique" if nom in ("precipitations", "et0_hargreaves") else nom
             debut, fin, _ = ind.FENETRES[(id_culture, cle)]
-            etiquette = f"{id_culture} / {id_modele} / {nom}"
 
-            if ind.avertir_si_annee_unique(serie, debut, fin, etiquette):
+            # Fenetre a cheval sur deux annees : la moyenne du module groupe
+            # par annee civile (par_annee), donc chaque hiver serait coupe au
+            # 31 decembre et la moyenne porterait sur des demi-hivers. Sur une
+            # seule annee, elle renverrait un 0 trompeur. On ecrit NULL.
+            # Limite a lever quand la moyenne groupera par annee agricole et
+            # non plus par annee civile.
+            if debut > fin:
                 valeur, nb_annees = None, None
-            else:
-                nb_annees = 1
 
             lignes.append({
                 "id_commune": id_commune,
