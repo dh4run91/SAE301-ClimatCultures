@@ -118,7 +118,7 @@ def test_aucun_jour_sous_moins_4_chez_cmcc():
     """
     s = _annee()
     assert ind.jours_de_gel(s[CMCC], -4.0, 1, 12) == 0
-    faits = dict((nom, v) for nom, v, _ in
+    faits = dict((nom, v) for nom, v, *_ in
                  ind.indicateurs_culture(s[CMCC], "BLE_TENDRE_H", 49.2535, avertir=False))
     assert faits["gel"] == 0 and faits["gel"] is not None
 
@@ -232,6 +232,39 @@ def test_fenetre_a_cheval_sur_deux_annees():
     assert ind.mois_de_fenetre(11, 2) == [11, 12, 1, 2]
     assert ind.dans_fenetre(12, 11, 2) and ind.dans_fenetre(1, 11, 2)
     assert not ind.dans_fenetre(3, 11, 2)
+
+
+def _jours_mars(annee, t_mins):
+    """Une serie minimale : un jour de mars par valeur de t_min donnee."""
+    from datetime import date
+    return [{"date": date(annee, 3, i + 1), "t_min": tm, "t_max": 10.0, "precip": 1.0}
+            for i, tm in enumerate(t_mins)]
+
+
+def test_moyenne_sur_deux_annees_et_nb_annees():
+    """4 jours de gel en 2041, 2 en 2042 : la moyenne est 3, sur 2 annees."""
+    serie = (_jours_mars(2041, [-3.0, -3.0, -3.0, -3.0, 5.0])
+             + _jours_mars(2042, [-3.0, -3.0, 5.0, 5.0, 5.0]))
+    valeur, n = ind.moyenne_sur_annees(
+        serie, lambda j: ind.jours_de_gel(j, -2.0, *MARS_A_MAI))
+    assert (valeur, n) == (3.0, 2)
+
+
+def test_une_seule_annee_valeur_inchangee_et_nb_annees_egal_1():
+    """Jeu de test sur 2049 seule : la valeur ne change pas, nb_annees vaut 1."""
+    s = _annee()[MRI]
+    direct = ind.jours_de_gel(s, -2.0, 3, 5)
+    valeur, n = ind.moyenne_sur_annees(s, lambda j: ind.jours_de_gel(j, -2.0, 3, 5))
+    assert valeur == direct and n == 1
+    faits = {nom: (v, u, nb) for nom, v, u, nb in
+             ind.indicateurs_culture(s, "VIGNE", 49.2535, avertir=False)}
+    assert faits["gel"][0] == ind.jours_de_gel(s, -2.0, 3, 5)
+    assert all(nb == 1 for _, _, nb in faits.values())
+
+
+def test_serie_vide_non_calculable_pas_zero():
+    """Aucune annee : None et 0 annee, jamais un 0 qui passerait pour un resultat."""
+    assert ind.moyenne_sur_annees([], lambda j: 0) == (None, 0)
 
 
 if __name__ == "__main__":
