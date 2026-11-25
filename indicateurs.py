@@ -42,12 +42,50 @@ FENETRES = {
 
 
 # Seuils agronomiques des cultures du MVP, copie de Dim_Culture.
+# op_gel et op_stress : sens de la comparaison au seuil, lus dans les sources
+# (colonnes operateur_gel et operateur_stress de data/referentiel-cultures-v2.csv,
+# issue #75). Ils ne sont pas dans Dim_Culture : le SQL ne les porte pas.
 CULTURES = {
-    "BLE_TENDRE_H": {"t_base": 0.0,  "t_plafond": None, "gel": -4.0, "stress": 30.0, "gdd_maturite": 2150},
-    "MAIS_GRAIN":   {"t_base": 6.0,  "t_plafond": 30.0, "gel":  0.0, "stress": 35.0, "gdd_maturite": 1600},
-    "VIGNE":        {"t_base": 10.0, "t_plafond": None, "gel": -2.0, "stress": 35.0, "gdd_maturite": 1300},
-    "TOURNESOL":    {"t_base": 6.0,  "t_plafond": None, "gel": -1.0, "stress": 34.0, "gdd_maturite": 1600},
+    "BLE_TENDRE_H": {"t_base": 0.0,  "t_plafond": None, "gel": -4.0, "stress": 30.0, "gdd_maturite": 2150,
+                     "op_gel": "<",           "op_stress": ">"},
+    "MAIS_GRAIN":   {"t_base": 6.0,  "t_plafond": 30.0, "gel":  0.0, "stress": 35.0, "gdd_maturite": 1600,
+                     "op_gel": "<",           "op_stress": ">="},
+    "VIGNE":        {"t_base": 10.0, "t_plafond": None, "gel": -2.0, "stress": 35.0, "gdd_maturite": 1300,
+                     "op_gel": "indetermine", "op_stress": ">="},
+    "TOURNESOL":    {"t_base": 6.0,  "t_plafond": None, "gel": -1.0, "stress": 34.0, "gdd_maturite": 1600,
+                     "op_gel": "indetermine", "op_stress": "indetermine"},
 }
+
+# Les quatre sens de comparaison acceptes : jour compte si la valeur mesuree
+# est (<, <=, >, >=) au seuil.
+COMPARAISONS = {
+    "<":  lambda valeur, seuil: valeur < seuil,
+    "<=": lambda valeur, seuil: valeur <= seuil,
+    ">":  lambda valeur, seuil: valeur > seuil,
+    ">=": lambda valeur, seuil: valeur >= seuil,
+}
+
+# Sens employe quand la source ne le dit pas (operateur « indetermine »).
+# Ce n'est pas un sens source : c'est le sens strict du guide du cours, choisi
+# par coherence. Dans les deux cas c'est le sens le plus optimiste, qui compte
+# le moins de jours : il ne vient pas d'un choix de prudence.
+REPLI_GEL = "<"
+REPLI_STRESS = ">"
+
+
+def comparateur(operateur, repli):
+    """Renvoie la fonction de comparaison correspondant a un operateur.
+
+    « indetermine » donne le sens de repli. Tout autre texte que <, <=, > ou
+    >= (case vide comprise) leve ValueError : un sens inconnu ne doit pas
+    etre remplace en silence.
+    """
+    if operateur == "indetermine":
+        operateur = repli
+    if operateur not in COMPARAISONS:
+        raise ValueError(f"operateur inconnu : {operateur!r}. "
+                         f"Valeurs acceptees : {', '.join(COMPARAISONS)} ou indetermine.")
+    return COMPARAISONS[operateur]
 
 
 def en_float(valeur):
@@ -146,23 +184,29 @@ def degres_jours(serie, t_base, t_plafond=None, mois_debut=1, mois_fin=12):
     return round(total, 1)
 
 
-def jours_de_gel(serie, seuil, mois_debut, mois_fin):
-    """Nombre de jours de la fenetre ou t_min est inferieure ou egale au seuil.
+def jours_de_gel(serie, seuil, mois_debut, mois_fin, operateur="<"):
+    """Nombre de jours de la fenetre ou t_min est au seuil dans le sens operateur.
 
-    Un jour sans t_min n'est pas compte ; sa t_max n'intervient pas ici.
+    Par defaut le gel compte en strict : t_min < seuil. L'operateur (<, <=,
+    ou indetermine, qui donne <) vient de CULTURES. Un jour sans t_min n'est
+    pas compte ; sa t_max n'intervient pas ici.
     """
+    compte = comparateur(operateur, REPLI_GEL)
     return sum(1 for j in filtrer(serie, mois_debut, mois_fin)
-               if j["t_min"] is not None and j["t_min"] <= seuil)
+               if j["t_min"] is not None and compte(j["t_min"], seuil))
 
 
-def jours_echaudage(serie, seuil, mois_debut, mois_fin):
-    """Nombre de jours de la fenetre ou t_max depasse strictement le seuil.
+def jours_echaudage(serie, seuil, mois_debut, mois_fin, operateur=">"):
+    """Nombre de jours de la fenetre ou t_max est au seuil dans le sens operateur.
 
-    Sert a la fois pour l'echaudage du ble et pour le stress thermique.
-    Un jour sans t_max n'est pas compte ; sa t_min n'intervient pas ici.
+    Par defaut le stress compte en strict : t_max > seuil. L'operateur (>, >=,
+    ou indetermine, qui donne >) vient de CULTURES. Sert a la fois pour
+    l'echaudage du ble et pour le stress thermique. Un jour sans t_max n'est
+    pas compte ; sa t_min n'intervient pas ici.
     """
+    compte = comparateur(operateur, REPLI_STRESS)
     return sum(1 for j in filtrer(serie, mois_debut, mois_fin)
-               if j["t_max"] is not None and j["t_max"] > seuil)
+               if j["t_max"] is not None and compte(j["t_max"], seuil))
 
 
 def cumul_precipitations(serie, mois_debut, mois_fin):
@@ -272,14 +316,16 @@ def indicateurs_culture(serie, id_culture, latitude_deg, avertir=True):
         f = fenetre(nom)
         if f:
             seuil = f[2] if f[2] is not None else seuils["gel"]
-            valeur, n = moyenne_sur_annees(serie, lambda j: jours_de_gel(j, seuil, f[0], f[1]))
+            valeur, n = moyenne_sur_annees(
+                serie, lambda j: jours_de_gel(j, seuil, f[0], f[1], seuils["op_gel"]))
             faits.append((nom, valeur, "jours", n))
 
     for nom, cle in (("echaudage", "stress"), ("stress_thermique", "stress")):
         f = fenetre(nom)
         if f:
             seuil = f[2] if f[2] is not None else seuils[cle]
-            valeur, n = moyenne_sur_annees(serie, lambda j: jours_echaudage(j, seuil, f[0], f[1]))
+            valeur, n = moyenne_sur_annees(
+                serie, lambda j: jours_echaudage(j, seuil, f[0], f[1], seuils["op_" + cle]))
             faits.append((nom, valeur, "jours", n))
 
     f = fenetre("bilan_hydrique")

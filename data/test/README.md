@@ -111,12 +111,16 @@ autant que du modèle.
 
 | Seuil | MRI | CMCC |
 |---|---|---|
-| −4 °C, année entière | 5 | **0** |
-| −2 °C, année entière | 9 | 1 |
+| −4 °C, année entière | 4 | **0** |
+| −2 °C, année entière | 8 | 1 |
 | 0 °C, année entière | 28 | 11 |
 
-Le compte est « inférieur ou égal » : chez MRI, le 23 février vaut −4,0 °C
-pile, d'où 5 jours, et 4 en comptage strict.
+Le gel compte en strict : un jour est compté si `t_min` est **strictement
+inférieur** au seuil. Chez MRI, deux jours valent exactement un seuil : le
+12 février (−2,0 °C) et le 23 février (−4,0 °C). Ils comptaient avant le
+changement d'opérateur (issue #75), d'où 9 et 5 jours en comptage « inférieur
+ou égal » ; ils ne comptent plus, d'où 8 et 4. À 0 °C aucun jour ne tombe
+pile, et chez CMCC aucun non plus : ces valeurs ne changent pas.
 
 Le module doit renvoyer l'entier `0`, pas `None`. Zéro jour sous le seuil
 est une mesure réelle. `None` voudrait dire « non calculable », et finirait en
@@ -180,12 +184,30 @@ rien. Vérifié par `test_fenetre_vide_zero_et_avertissement`.
 Ces valeurs ont été recalculées par un comptage `awk` indépendant du
 module, et concordent.
 
+### Un jour posé exactement sur le seuil
+
+Les séries réelles ne contiennent presque aucun jour à la valeur exacte d'un
+seuil, donc elles ne montrent pas le sens de la comparaison. Ce cas est testé
+sur des séries minimales aux valeurs choisies à la main, pas sur ce jeu :
+
+| Test | Valeurs | Strict | Large |
+|---|---|---|---|
+| `test_gel_jour_pose_sur_le_seuil` | t_min −4,1 / −4,0 / −3,9 / 0,0, seuil −4,0 | 1 jour (`<`) | 2 jours (`<=`) |
+| `test_stress_jour_pose_sur_le_seuil` | t_max 34,9 / 35,0 / 35,1, seuil 35,0 | 1 jour (`>`) | 2 jours (`>=`) |
+
+`test_operateurs_des_cultures_dans_indicateurs_culture` vérifie que chaque
+culture applique l'opérateur de son référentiel au bord de son seuil, et
+`test_operateur_inconnu_leve_une_erreur` qu'un sens inconnu ou vide n'est
+jamais remplacé en silence. Un opérateur « indetermine » (la source ne dit
+pas le sens) est compté en strict, par convention du cours et non d'après une
+source.
+
 ## Comment vérifier à la main
 
 Ouvrez `series-reims-mars-2049.csv` dans un tableur, filtrez sur un modèle.
 
 **Les jours de gel** se comptent directement : combien de lignes ont `t_min`
-inférieur ou égal au seuil. Quatre lignes sous zéro chez MRI, une seule sous
+strictement inférieur au seuil. Quatre lignes sous zéro chez MRI, une seule sous
 moins deux.
 
 **Les degrés-jours** se calculent ligne à ligne :
