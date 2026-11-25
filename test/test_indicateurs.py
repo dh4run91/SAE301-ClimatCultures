@@ -27,6 +27,7 @@ RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RACINE)
 
 import indicateurs as ind  # noqa: E402
+import faits  # noqa: E402
 
 MARS = os.path.join(RACINE, "data", "test", "series-reims-mars-2049.csv")
 ANNEE = os.path.join(RACINE, "data", "test", "series-reims-2049-complete.csv")
